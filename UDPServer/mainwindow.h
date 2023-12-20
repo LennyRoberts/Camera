@@ -18,10 +18,9 @@ class MainWindow : public QMainWindow {
   MainWindow(QWidget *parent = nullptr);
   ~MainWindow();
 
-
-
 public slots:
   void ShowImg(QByteArray &array, qint64 size);
+  void processTCPdata(QByteArray &array, qint64 size);
   void TCPConnect();
   void TCPBreak();
   void UDPConnect();

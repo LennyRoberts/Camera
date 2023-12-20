@@ -26,23 +26,29 @@ MainWindow::~MainWindow()
 void MainWindow::TCPConnect()
 {
   int port = ui->spinBox_tcpport->value();
-  this->net_tcp->Connect(port);
+  if(this->net_tcp->Connect(port)){
+     ui->button_tcpstart->setEnabled(false);
+     ui->button_tcpstop->setEnabled(true);
+  }
 }
 
 void MainWindow::TCPBreak()
 {
-
+  this->net_tcp->Close();
+  ui->button_tcpstart->setEnabled(true);
+  ui->button_tcpstop->setEnabled(false);
 }
 
 void MainWindow::UDPConnect()
 {
   int port = ui->spinBox_udpport->value();
   qDebug() << "udp port = " << port;
-  this->net_udp->Connect(port);
-  connect(this->net_udp, &UDPNet::display_img,
-          this, &MainWindow::ShowImg);
-  ui->button_udpstart->setEnabled(false);
-  ui->button_tcpstop->setEnabled(true);
+  if(this->net_udp->Connect(port)){
+    connect(this->net_udp, &UDPNet::display_img,
+            this, &MainWindow::ShowImg);
+    ui->button_udpstart->setEnabled(false);
+    ui->button_udpstop->setEnabled(true);
+  }
 }
 
 void MainWindow::UDPBreak()
@@ -51,7 +57,12 @@ void MainWindow::UDPBreak()
   disconnect(this->net_udp, &UDPNet::display_img,
              this, &MainWindow::ShowImg);
   ui->button_udpstart->setEnabled(true);
-  ui->button_tcpstop->setEnabled(false);
+  ui->button_udpstop->setEnabled(false);
+}
+
+void MainWindow::processTCPdata(QByteArray &array, qint64 size)
+{
+  qDebug() << "recv data("<< size << "): " << array;
 }
 
 void MainWindow::ShowImg(QByteArray &array, qint64 size)

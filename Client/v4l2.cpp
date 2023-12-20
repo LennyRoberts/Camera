@@ -31,15 +31,16 @@ class NetWork {
  public:
   virtual ~NetWork(){}
   virtual bool Connect() = 0;
-  virtual int RecvFrom(char *buff, int len) = 0;
-  virtual int SendTo(char *buff, int len) = 0;
+  virtual int Recv(char *buff, int len) = 0;
+  virtual int Send(char *buff, int len) = 0;
   virtual void Close() = 0;
 
 };
 
 class TCPNet : public NetWork {
  private:
-  int fd;
+  int client_fd;
+  int server_fd;
   int port;
   std::string addrs;
   struct sockaddr_in addr_in;
@@ -49,7 +50,8 @@ class TCPNet : public NetWork {
     this->port  = DEFAUL_PORT;
   }
   TCPNet(std::string addrs, int port){
-    this->fd  =INVALID_FD;
+    this->server_fd  = INVALID_FD;
+    this->client_fd  = INVALID_FD;
     this->addrs = addrs;
     this->port  = port;
   }
@@ -57,23 +59,70 @@ class TCPNet : public NetWork {
 
   bool Connect()
   {
-    
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sock_fd < 0){
+      perror("Socket Error");
+      return false;
+    }
+    struct sockaddr_in server_in, client_in;
+    server_in.sin_family      = AF_INET;
+    server_in.sin_addr.s_addr = INADDR_ANY;
+    server_in.sin_port        = htons(this->port);
+    bzero(&(server_in.sin_zero), 8);
+    socklen_t client_addrs_len = sizeof(client_in);
+    if(bind(sock_fd, (struct sockaddr*)&server_in, sizeof(server_in)) < 0){
+      perror("Bind Error");
+      return false;
+    }
+    if(listen(sock_fd, 10) < 0){
+      perror("Listen Error");
+      return false;
+    }
+    this->server_fd = sock_fd;
+    sock_fd = INVALID_FD;
+    while(1){
+      sock_fd = accept(this->server_fd, 
+                       (struct sockaddr*)&client_in, 
+                       &client_addrs_len);
+      if(sock_fd < 0){
+        continue;
+      }
+      printf("accept connection from %s:%d\n",
+              inet_ntoa(client_in.sin_addr), htons(client_in.sin_port));
+      this->client_fd = sock_fd;
+      char buff[64];
+      while(1){
+        memset(buff, '\0', 64);
+        int size = this->Recv(buff, sizeof(buff));
+        if(size < 0){
+          this->Close();
+          printf("Recv Test Data Error, Close!\n");
+          break;
+        }
+        this->Send(buff, size);
+      }
+    }
+    return true;
   }
 
-  int RecvFrom(char *buff, int len)
+  int Recv(char *buff, int len)
   {
-
+    int size = recv(this->client_fd, buff, len, 0);
+    return size;
   }
 
-  int SendTo(char *buff, int len)
+  int Send(char *buff, int len)
   {
-
+    int size = send(this->client_fd, buff, len, 0);
+    return size;
   }
 
   void Close()
   {
-    close(this->fd);
-    this->fd = INVALID_FD;
+    close(this->client_fd);
+    this->client_fd = INVALID_FD;
+    close(this->server_fd);
+    this->server_fd = INVALID_FD;
   }
 };
 
@@ -109,7 +158,7 @@ public:
     this->addr_in.sin_port = htons(this->port);
   }
 
-  int RecvFrom(char *buff, int len) override
+  int Recv(char *buff, int len) override
   {
     struct sockaddr* sock_addr = (struct sockaddr*)&this->addr_in;
     int addr_len = sizeof(*sock_addr);
@@ -117,7 +166,7 @@ public:
     return size;
   }
 
-  int SendTo(char *buff, int len) override
+  int Send(char *buff, int len) override
   {
     struct sockaddr* sock_addr = (struct sockaddr*)&this->addr_in;
     int addr_len = sizeof(*sock_addr);
@@ -470,12 +519,19 @@ int main(int argc, char **argv)
   height        = atoi(argv[4]);
   printf("param_1:%s; param_2=%d\n", param_1, param_2);
   NetWork *udp = new UDPNet(param_1, param_2);
+  NetWork *tcp = new TCPNet(param_1, param_2);
 
   V4L2 cam;
   bool res = false;
   while(1){
-    if(!udp->Connect())
-      continue;
+    while(1){
+      if(tcp->Connect())
+        break;
+    }
+    while(1){
+      if(udp->Connect())
+        break;
+    }
     do {
       res = cam.OpenCamera();
     } while(!res);
@@ -498,7 +554,7 @@ int main(int argc, char **argv)
         printf("\niamge_size = %d\n", size);
         int k = 10;
         int index = 0;
-        bool res = udp->SendTo(buff, size);
+        bool res = udp->Send(buff, size);
         if(!res)
           perror("send packet error");
         delete [] buff;

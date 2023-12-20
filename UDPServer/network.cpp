@@ -70,18 +70,25 @@ TCPNet::~TCPNet(){}
 bool TCPNet::Connect(int port)
 {
   this->tcp_server = new QTcpServer();
-  QObject::connect(this->tcp_server, &QTcpServer::newConnection,
-                   this, &TCPNet::NewConnection);
   bool res = this->tcp_server->listen(QHostAddress::Any, port);
   if(res) {
     qDebug() << "connect tcp: ";
     this->port = port;
+    QObject::connect(this->tcp_server, &QTcpServer::newConnection,
+                     this, &TCPNet::NewConnection);
     return true;
   } else
     qDebug() << "connect fail";
   return false;
 }
 
+void TCPNet::Close()
+{
+  this->tcp_sock->close();
+  this->tcp_server->close();
+  QObject::disconnect(this->tcp_server, &QTcpServer::newConnection,
+                      this, &TCPNet::NewConnection);
+}
 
 void TCPNet::NewConnection()
 {
