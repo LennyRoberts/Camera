@@ -5,8 +5,26 @@
 #include <QPixmap>
 #include <QImage>
 #include <QPushButton>
+#include <QThread>
+#include <QString>
+
+#include <iostream>
+#include <cstdio>
+#include <cstdlib>
 
 #include "network.h"
+
+class MyThread : public QThread {
+  Q_OBJECT
+ private:
+  TCPNet *tcp;
+ public:
+  MyThread(TCPNet *tcp);
+  void run() override;
+ signals:
+  void RecvTCPData(QString qstr);
+
+};
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -18,18 +36,25 @@ class MainWindow : public QMainWindow {
   MainWindow(QWidget *parent = nullptr);
   ~MainWindow();
 
-public slots:
+ public slots:
   void ShowImg(QByteArray &array, qint64 size);
-  void processTCPdata(QByteArray &array, qint64 size);
   void TCPConnect();
+  void ProcessTCPData(QString qstr);
   void TCPBreak();
   void UDPConnect();
   void UDPBreak();
+
+  void OpenCamera();
+  void CloseCamera();
 
  private:
   Ui::MainWindow *ui;
   QImage         image;
   TCPNet         *net_tcp;
   UDPNet         *net_udp;
+  MyThread       *tcp_thread;
 };
+
+
+
 #endif // MAINWINDOW_H

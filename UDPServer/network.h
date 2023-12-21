@@ -4,8 +4,20 @@
 #include <QObject>
 #include <QByteArray>
 #include <QUdpSocket>
-#include <QTcpSocket>
-#include <QTcpServer>
+
+#include <errno.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <sys/select.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <cstdio>
+#include <cstdlib>
+
+#define INVALID_FD  -1
 
 class UDPNet : public QObject {
   Q_OBJECT
@@ -36,15 +48,16 @@ class TCPNet : public QObject  {
   TCPNet();
   ~TCPNet();
   bool Connect(int port);
+  int Send(char *buff, int len);
+  int Recv(char *buff, int len);
+  void Close();
 
  public slots:
-  void NewConnection();
-  void ProcessData();
 
- public:
-  QTcpSocket  *tcp_sock;
-  QTcpServer  *tcp_server;
+
  private:
+  int client_fd;
+  int server_fd;
   int  port;
 };
 

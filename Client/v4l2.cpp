@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <map>
+#include <pthread.h>
 
 #define INVALID_FD        -1
 #define NB_BUFFER          4
@@ -31,101 +32,183 @@ class NetWork {
  public:
   virtual ~NetWork(){}
   virtual bool Connect() = 0;
-  virtual int Recv(char *buff, int len) = 0;
-  virtual int Send(char *buff, int len) = 0;
+  virtual int  Recv(char *buff, int len) = 0;
+  virtual int  Send(const char *buff, int len) = 0;
   virtual void Close() = 0;
-
 };
+
+// class TCPNetServer : public NetWork {
+//  private:
+//   int client_fd;
+//   int server_fd;
+//   int port;
+//   std::string addrs;
+//   struct sockaddr_in addr_in;
+//  public:
+//   TCPNetServer(){
+//     this->addrs = DEFAULT_ADDR;
+//     this->port  = DEFAUL_PORT;
+//   }
+//   TCPNetServer(std::string addrs, int port){
+//     this->server_fd  = INVALID_FD;
+//     this->client_fd  = INVALID_FD;
+//     this->addrs = addrs;
+//     this->port  = port;
+//   }
+//   ~TCPNetServer(){}
+//   bool Connect()
+//   {
+//     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+//     if(sock_fd < 0){
+//       perror("Socket Error");
+//       return false;
+//     }
+//     struct sockaddr_in server_in, client_in;
+//     server_in.sin_family      = AF_INET;
+//     server_in.sin_addr.s_addr = INADDR_ANY;
+//     server_in.sin_port        = htons(this->port);
+//     bzero(&(server_in.sin_zero), 8);
+//     socklen_t client_addrs_len = sizeof(client_in);
+//     if(bind(sock_fd, (struct sockaddr*)&server_in, sizeof(server_in)) < 0){
+//       perror("Bind Error");
+//       return false;
+//     }
+//     if(listen(sock_fd, 10) < 0){
+//       perror("Listen Error");
+//       return false;
+//     }
+//     this->server_fd = sock_fd;
+//     sock_fd = INVALID_FD;
+//     while(1){
+//       sock_fd = accept(this->server_fd, 
+//                        (struct sockaddr*)&client_in, 
+//                        &client_addrs_len);
+//       if(sock_fd < 0){
+//         continue;
+//       }
+//       printf("accept connection from %s:%d\n",
+//               inet_ntoa(client_in.sin_addr), htons(client_in.sin_port));
+//       this->client_fd = sock_fd;
+//       char buff[64];
+//       while(1){
+//         memset(buff, '\0', 64);
+//         int size = this->Recv(buff, sizeof(buff));
+//         if(size < 0){
+//           this->Close();
+//           printf("Recv Test Data Error, Close!\n");
+//           break;
+//         }
+//         this->Send(buff, size);
+//       }
+//     }
+//     return true;
+//   }
+//   int Recv(char *buff, int len)
+//   {
+//     int size = recv(this->client_fd, buff, len, 0);
+//     return size;
+//   }
+//   int Send(char *buff, int len)
+//   {
+//     int size = send(this->client_fd, buff, len, 0);
+//     return size;
+//   }
+//   void Close()
+//   {
+//     close(this->client_fd);
+//     this->client_fd = INVALID_FD;
+//     close(this->server_fd);
+//     this->server_fd = INVALID_FD;
+//   }
+// };
 
 class TCPNet : public NetWork {
  private:
-  int client_fd;
-  int server_fd;
-  int port;
   std::string addrs;
-  struct sockaddr_in addr_in;
+  int port;
+  int sock_fd;
  public:
   TCPNet(){
-    this->addrs = DEFAULT_ADDR;
-    this->port  = DEFAUL_PORT;
+    this->addrs   = "192.168.254.120";
+    this->port    = 80;
+    this->sock_fd = INVALID_FD;
   }
   TCPNet(std::string addrs, int port){
-    this->server_fd  = INVALID_FD;
-    this->client_fd  = INVALID_FD;
-    this->addrs = addrs;
-    this->port  = port;
+    this->addrs   = addrs;
+    this->port    = port;
+    this->sock_fd = INVALID_FD;
   }
   ~TCPNet(){}
 
-  bool Connect()
+  bool Connect() override
   {
-    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if(sock_fd < 0){
-      perror("Socket Error");
+    this->sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(this->sock_fd < 0){
+      perror("tcp socket error");
+      this->sock_fd = INVALID_FD;
       return false;
     }
-    struct sockaddr_in server_in, client_in;
-    server_in.sin_family      = AF_INET;
-    server_in.sin_addr.s_addr = INADDR_ANY;
-    server_in.sin_port        = htons(this->port);
-    bzero(&(server_in.sin_zero), 8);
-    socklen_t client_addrs_len = sizeof(client_in);
-    if(bind(sock_fd, (struct sockaddr*)&server_in, sizeof(server_in)) < 0){
-      perror("Bind Error");
-      return false;
-    }
-    if(listen(sock_fd, 10) < 0){
-      perror("Listen Error");
-      return false;
-    }
-    this->server_fd = sock_fd;
-    sock_fd = INVALID_FD;
+    struct sockaddr_in addr_in;
+    addr_in.sin_family = AF_INET;
+    inet_aton(this->addrs.c_str(), &addr_in.sin_addr);
+    addr_in.sin_port   = htons(this->port);
+
     while(1){
-      sock_fd = accept(this->server_fd, 
-                       (struct sockaddr*)&client_in, 
-                       &client_addrs_len);
-      if(sock_fd < 0){
+      int res = connect(this->sock_fd, (struct sockaddr*)&addr_in, sizeof(addr_in));
+      if(res < 0){
+        perror("tcp connet error");
+        this->sock_fd = INVALID_FD;
         continue;
       }
-      printf("accept connection from %s:%d\n",
-              inet_ntoa(client_in.sin_addr), htons(client_in.sin_port));
-      this->client_fd = sock_fd;
-      char buff[64];
-      while(1){
-        memset(buff, '\0', 64);
-        int size = this->Recv(buff, sizeof(buff));
-        if(size < 0){
-          this->Close();
-          printf("Recv Test Data Error, Close!\n");
-          break;
-        }
-        this->Send(buff, size);
-      }
+      printf("tcp connect successfully! %s:%d\n",
+              inet_ntoa(addr_in.sin_addr), (int)htonl(addr_in.sin_port));
+      break;
     }
+    char buff[64];
+    memset(buff, '\0', 64);
+    strcpy(buff, "hello camera!");
+    int size = Send(buff, strlen(buff));
+    if(size < 0){
+      perror("send buff fail");
+      this->Close();
+      return false;
+    }
+    printf("send buff: %s\n", buff);
+    size = Recv(buff, sizeof(buff));
+    if(size < 0){
+      perror("TCP recv fail");
+      this->Close();
+      return false;
+    }
+    printf("recv buff: %s\n", buff);
     return true;
   }
 
-  int Recv(char *buff, int len)
+  int Recv(char *buff, int len) override
   {
-    int size = recv(this->client_fd, buff, len, 0);
+    int size = 0;
+    while(1){
+      size = recv(this->sock_fd, buff, len, 0);
+      if(size > 0)
+        break;
+    }
     return size;
   }
-
-  int Send(char *buff, int len)
+  
+  int Send(const char *buff, int len) override
   {
-    int size = send(this->client_fd, buff, len, 0);
-    return size;
+    int size = send(this->sock_fd, buff, len, 0);
+    return false;
   }
 
-  void Close()
+  void Close() override
   {
-    close(this->client_fd);
-    this->client_fd = INVALID_FD;
-    close(this->server_fd);
-    this->server_fd = INVALID_FD;
+    shutdown(this->sock_fd, SHUT_RDWR);
+    close(this->sock_fd);
+    this->sock_fd = INVALID_FD;
   }
+
 };
-
 
 class UDPNet : public NetWork {
  private:
@@ -135,11 +218,12 @@ class UDPNet : public NetWork {
   struct sockaddr_in addr_in;
 public:
   UDPNet(){
+    this->fd    = INVALID_FD;
     this->addrs = DEFAULT_ADDR;
     this->port  = DEFAUL_PORT;
   }
   UDPNet(std::string addrs, int port){
-    this->fd  =INVALID_FD;
+    this->fd    = INVALID_FD;
     this->addrs = addrs;
     this->port  = port;
   }
@@ -149,12 +233,12 @@ public:
   {
     this->fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(this->fd < 0){
-      perror("Socket Error!!!\n");
+      perror("UDP Socket Error!!!\n");
       return false;
     }
     memset(&this->addr_in, 0, sizeof(this->addr_in));
     this->addr_in.sin_family = AF_INET;
-    this->addr_in.sin_addr.s_addr = inet_addr(this->addrs.c_str());
+    inet_aton(this->addrs.c_str(), &addr_in.sin_addr);
     this->addr_in.sin_port = htons(this->port);
   }
 
@@ -166,7 +250,7 @@ public:
     return size;
   }
 
-  int Send(char *buff, int len) override
+  int Send(const char *buff, int len) override
   {
     struct sockaddr* sock_addr = (struct sockaddr*)&this->addr_in;
     int addr_len = sizeof(*sock_addr);
@@ -212,10 +296,17 @@ int xioctl(int fd, int request, void *arg) {
   return r;
 }
 
+
+/*=======================================================================*/
+/*=======================================================================*/
 struct VideoDevice {
   void *start;
   size_t length;
 };
+
+typedef struct CameraParam {
+
+} cam_para;
 
 class V4L2 {
  public:
@@ -290,7 +381,7 @@ class V4L2 {
     printf("version: %d\n", cap.version);
     if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)){
       printf("/dev/video0 is not a video capture device\n");
-      return false;
+      return "";
     }
     if(cap.capabilities & V4L2_CAP_STREAMING){
       printf("/dev/video supports streaming io\n");
@@ -511,27 +602,48 @@ class V4L2 {
   }
 };
 
+
+static void* Capture(void* argc)
+{
+  pthread_t tid = pthread_self();
+  printf("create pthread for camera capture, tid=%#X\n", tid);
+  int *ptr_fd = (int *)argc;
+  int fd = *ptr_fd;
+  while(1) {
+
+  }
+}
+
+
 int main(int argc, char **argv)
 {
   char *param_1 = (char *)argv[1];
   int  param_2  = atoi(argv[2]);
-  width         = atoi(argv[3]);
-  height        = atoi(argv[4]);
-  printf("param_1:%s; param_2=%d\n", param_1, param_2);
-  NetWork *udp = new UDPNet(param_1, param_2);
+  int  param_3  = atoi(argv[3]);
+  width         = atoi(argv[4]);
+  height        = atoi(argv[5]);
+  printf("addrs:%s; tcp_port=%d, udp_port=%d\n", param_1, param_2, param_3);
   NetWork *tcp = new TCPNet(param_1, param_2);
+  NetWork *udp = new UDPNet(param_1, param_3);
+
+  // pthread_t tid_capture;
+  // int res = pthread_create(&tid_capture, NULL, &Capture, tcp);
+  // if(res == NULL){
+  //   printf("create pthread for camera captrue error!!!\t");
+  //   perror("create_pthread");
+  //   return -1;
+  // }
+  // usleep(1000*200);
 
   V4L2 cam;
   bool res = false;
   while(1){
-    while(1){
-      if(tcp->Connect())
-        break;
-    }
-    while(1){
-      if(udp->Connect())
-        break;
-    }
+    if(tcp->Connect())
+      printf("tcp connected!\n");
+
+    if(udp->Connect())
+      printf("udp socket!\n");
+
     do {
       res = cam.OpenCamera();
     } while(!res);
@@ -539,6 +651,7 @@ int main(int argc, char **argv)
 
     std::string str = cam.GetCapability();
     std::cout << "image_format:\n" << str << std::endl;
+    tcp->Send(str.c_str(), str.length());
     if(cam.SetFmt())
       printf("SetFmt OK \n");
     if(cam.BuffMmap())
@@ -575,6 +688,7 @@ int main(int argc, char **argv)
     cam.CloseCamera();
     udp->Close();
   }
+  // pthread_join(tid_capture, NULL);
 
   return 0;
 }

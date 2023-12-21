@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
   MainWindow win;
   win.setWindowTitle("camera");
   win.setWindowIcon(QIcon(":/src/img/camera.png"));
-  win.show();
+  win.show();  
+
   return app.exec();
 }
