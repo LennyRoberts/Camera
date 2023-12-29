@@ -1,12 +1,24 @@
-CXX=arm-linux-gnueabihf-g++
+# CXX=arm-linux-gnueabihf-g++
+CXX=g++
 TARGET=camera
 
-$(TARGET) : v4l2.o
-	$(CXX) -o $(TARGET) v4l2.o
+SRCS = ./src/main.cpp \
+			 ./lib/cJsonObject/cJSON.cpp \
+			 ./lib/cJsonObject/CJsonObject.cpp
+	
+INC = -I ./inc ./lib/cJsonObject
+SO = -L ./inc ./lib/cJsonObject
 
-v4l2.o : v4l2.cpp
-	$(CXX) -c -std=c++11 -lpthread -lm -ljpeg -lrt v4l2.cpp
+OBJS = $(SRCS:.cpp=.o)
+
+$(TARGET):$(OBJS)
+	$(CXX) -o $@ $^ -g -std=c++11 -lpthread -lm -lrt
+#	$(CXX) -o $@ $^ -std=c++11 -lpthread -lm -ljpeg -lrt
 
 .PHONY: clean
 clean:
-	rm -rf $(TARGET) v4l2.o
+	rm -rf $(TARGET) $(OBJS)
+
+%.o:%.cpp
+	$(CXX) $(CFLAGS) $(INC) -o $@ -c $< -g -std=c++11 -lpthread -lm -lrt
+#	$(CXX) $(CFLAGS) $(INC) -o $@ -c $< -std=c++11 -lpthread -lm -ljpeg -lrt
